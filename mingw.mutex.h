@@ -13,8 +13,6 @@
     #define STDTHREAD_STRICT_NONRECURSIVE_LOCKS
 #endif
 
-#include "WinBase.h"
-
 namespace std
 {
 class recursive_mutex
@@ -79,7 +77,11 @@ protected:
         {
             fprintf(stderr, "FATAL: Recursive locking or non-recursive mutex detected. Throwing sysetm exception\n");
             fflush(stderr);
+#ifdef __EXCEPTIONS
             throw system_error(EDEADLK, generic_category());
+#else
+            abort();
+#endif
         }
         mOwnerThread = self;
     }
@@ -90,7 +92,11 @@ protected:
         {
             fprintf(stderr, "FATAL: Recursive unlocking of non-recursive mutex detected. Throwing system exception\n");
             fflush(stderr);
+#ifdef __EXCEPTIONS
             throw system_error(EDEADLK, generic_category());
+#else
+            abort();
+#endif
         }
         mOwnerThread = 0;
     }
@@ -134,16 +140,22 @@ public:
         DWORD ret = WaitForSingleObject(mHandle, INFINITE);
         if (ret != WAIT_OBJECT_0)
         {
+#ifdef __EXCEPTIONS
             if (ret == WAIT_ABANDONED)
                 throw system_error(EOWNERDEAD, generic_category());
             else
                 throw system_error(EPROTO, generic_category());
+#else
+            abort();
+#endif
         }
     }
     void unlock()
     {
+#ifdef __EXCEPTIONS
         if (!ReleaseMutex(mHandle))
             throw system_error(EDEADLK, generic_category());
+#endif
     }
     bool try_lock()
     {
@@ -153,9 +165,17 @@ public:
         else if (ret == WAIT_OBJECT_0)
             return true;
         else if (ret == WAIT_ABANDONED)
+#ifdef __EXCEPTIONS
             throw system_error(EOWNERDEAD, generic_category());
+#else
+            abort();
+#endif
         else
+#ifdef __EXCEPTIONS
             throw system_error(EPROTO, generic_category());
+#else
+            abort();
+#endif
     }
     template <class Rep, class Period>
     bool try_lock_for(const std::chrono::duration<Rep,Period>& dur)
@@ -168,9 +188,17 @@ public:
         else if (ret == WAIT_OBJECT_0)
             return true;
         else if (ret == WAIT_ABANDONED)
+#ifdef __EXCEPTIONS
             throw system_error(EOWNERDEAD, generic_category());
+#else
+            abort();
+#endif
         else
+#ifdef __EXCEPTIONS
             throw system_error(EPROTO, generic_category());
+#else
+            abort();
+#endif
     }
     template <class Clock, class Duration>
     bool try_lock_until(const std::chrono::time_point<Clock,Duration>& timeout_time)
@@ -241,6 +269,7 @@ public:
 
 #endif
 
+
 struct once_flag
 {
     HANDLE guard = NULL;
@@ -256,10 +285,13 @@ inline void call_once(once_flag& flag, Callable&& func, Args&&... args)
 
     if (flag.guard == l_guard)
     {
+#ifdef __EXCEPTIONS
         try
+#endif
         {
             func(std::forward<Args>(args)...);
         }
+#ifdef __EXCEPTIONS
         catch (...)
         {
             SetEvent(flag.guard); // release the others
@@ -267,6 +299,7 @@ inline void call_once(once_flag& flag, Callable&& func, Args&&... args)
             flag.guard = NULL;
             throw;
         }
+#endif
         SetEvent(flag.guard);
     }
     else
@@ -275,6 +308,7 @@ inline void call_once(once_flag& flag, Callable&& func, Args&&... args)
         WaitForSingleObject(flag.guard, INFINITE);
     }
 }
+
 
 } // namespace std
 #endif // WIN32STDMUTEX_H

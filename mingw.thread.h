@@ -66,11 +66,17 @@ public:
     void join()
     {
         if (get_id() == GetCurrentThreadId())
+#ifdef __EXCEPTIONS
             throw system_error(EDEADLK, generic_category());
+#endif
         if (mHandle == _STD_THREAD_INVALID_HANDLE)
+#ifdef __EXCEPTIONS
             throw system_error(ESRCH, generic_category());
+#endif
         if (!joinable())
+#ifdef __EXCEPTIONS
             throw system_error(EINVAL, generic_category());
+#endif
         WaitForSingleObject(mHandle, INFINITE);
         CloseHandle(mHandle);
         mHandle = _STD_THREAD_INVALID_HANDLE;
@@ -99,7 +105,9 @@ public:
     void detach()
     {
         if (!joinable())
+#ifdef __EXCEPTIONS
             throw system_error();
+#endif
         mHandle = _STD_THREAD_INVALID_HANDLE;
         mThreadId.clear();
     }
