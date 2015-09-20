@@ -13,6 +13,8 @@
     #define STDTHREAD_STRICT_NONRECURSIVE_LOCKS
 #endif
 
+#include "WinBase.h"
+
 namespace std
 {
 class recursive_mutex
@@ -238,5 +240,41 @@ public:
 };
 
 #endif
+
+struct once_flag
+{
+    HANDLE guard = NULL;
+};
+
+template<class Callable, class ...Args>
+inline void call_once(once_flag& flag, Callable&& func, Args&&... args)
+{
+    if (flag.guard != NULL) { return; };
+    HANDLE l_guard = CreateEvent(NULL, true, false, NULL);
+    InterlockedCompareExchangePointer(&reinterpret_cast<PVOID&>(flag.guard),
+                                      l_guard, 0);
+
+    if (flag.guard == l_guard)
+    {
+        try
+        {
+            func(std::forward<Args>(args)...);
+        }
+        catch (...)
+        {
+            SetEvent(flag.guard); // release the others
+            CloseHandle(flag.guard);
+            flag.guard = NULL;
+            throw;
+        }
+        SetEvent(flag.guard);
+    }
+    else
+    {
+        CloseHandle(l_guard);
+        WaitForSingleObject(flag.guard, INFINITE);
+    }
 }
+
+} // namespace std
 #endif // WIN32STDMUTEX_H
